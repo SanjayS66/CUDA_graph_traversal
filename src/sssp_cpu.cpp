@@ -2,13 +2,13 @@
 #include <cstdlib> 
 #include <cstring> 
 #include "csr.h"
-
+#include "sssp.h"
+#include "timer.h"
 #include <queue>
 #include <vector>
 #include <utility> 
 
-#include <chrono>
-using Clock = std::chrono::steady_clock;
+Timer t_djikstra,t_edge,t_csr;
 
 EdgeListGraph return_edgelist(char* input_path){
     EdgeListGraph g;
@@ -98,9 +98,9 @@ int main(int argc, char **argv) {
         }
     }
 
-    auto t0 = Clock::now();
+    timer_start(&t_edge);
     EdgeListGraph e = return_edgelist(input_path);
-    auto t1 = Clock::now();
+    timer_stop(&t_edge);
     printf("Graph Vertices (V): %d, Edges (E): %d\n", e.V, e.E);
 
     //debgu print
@@ -115,8 +115,9 @@ int main(int argc, char **argv) {
     // }
 
 //  returns validated csr
+    timer_start(&t_csr);
     CSRGraph csr = return_csr(&e,directed);
-    auto t2 = Clock::now();
+    timer_stop(&t_csr);
     float* weights = csr.weights;
     int* col_idx = csr.col_index;
     int* row_offsets = csr.row_offset;
@@ -157,16 +158,18 @@ int main(int argc, char **argv) {
     //     printf("  max out-deg   : %d\n", max_deg);
     //     printf("  avg out-deg   : %.3f\n", (double)csr.E / csr.V);
     // }
+    timer_start(&t_djikstra);
     printf("Djikstras distances : \n");
     float* dist = djikstras(&csr,0);
-    auto t3 = Clock::now();
+    timer_stop(&t_djikstra);
+    
     // for(int i=0;i<e.V;i++){
     //     printf("%f  ",dist[i]);
     // }
 
-    double read_ms   = std::chrono::duration<double, std::milli>(t1 - t0).count();
-    double csr_ms     = std::chrono::duration<double, std::milli>(t2 - t1).count();
-    double dijkstra_ms = std::chrono::duration<double, std::milli>(t3 - t2).count();
+    double read_ms   = timer_elapsed_ms(&t_edge);
+    double csr_ms     = timer_elapsed_ms(&t_csr);
+    double dijkstra_ms = timer_elapsed_ms(&t_djikstra);
 
     printf("\n--- Timing ---\n");
     printf("Read graph   : %.4f ms\n", read_ms);
