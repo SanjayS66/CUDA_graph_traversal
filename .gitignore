@@ -8,6 +8,9 @@ test/csr_convert
 test/test_csr
 *.out
 
+# large graph file
+graphs/graph_large_sparse.edgelist
+
 # Editor/OS junk (optional but common)
 .vscode/
 *.swp

@@ -10,10 +10,10 @@ extern "C" {
 #endif
 
 // CPU implementation of the Djikstras algo
-float* djikstras(CSRGraph* csr, int src);
+float* bellman_ford(CSRGraph* csr, int src);
 
 // GPU counterpart — same contract as djikstras(), implemented in sssp_gpu.cu
-float* djikstras_gpu(CSRGraph* csr, int src);
+float* bellman_GPU(CSRGraph* csr, int src);
 
 #ifdef __cplusplus
 }

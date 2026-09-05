@@ -6,9 +6,7 @@
 #include "csr.h"
 #include "sssp.h"
 #include "timer.h"
-#include <queue>
-#include <vector>
-#include <utility> 
+
 
 Timer t_bellman,t_edge,t_csr;
 
@@ -33,7 +31,7 @@ CSRGraph return_csr(EdgeListGraph* e,int directed){
     return csr;
 }
 
-//DJikstras function 
+//Bellman Ford function CPU
 float* bellman_ford(CSRGraph* csr,int src){
     int V = csr->V;
     int E = csr->E;
