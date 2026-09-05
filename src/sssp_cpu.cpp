@@ -7,6 +7,9 @@
 #include <vector>
 #include <utility> 
 
+#include <chrono>
+using Clock = std::chrono::steady_clock;
+
 EdgeListGraph return_edgelist(char* input_path){
     EdgeListGraph g;
     g = read_graph_from_file(input_path);
@@ -95,7 +98,9 @@ int main(int argc, char **argv) {
         }
     }
 
+    auto t0 = Clock::now();
     EdgeListGraph e = return_edgelist(input_path);
+    auto t1 = Clock::now();
     printf("Graph Vertices (V): %d, Edges (E): %d\n", e.V, e.E);
 
     //debgu print
@@ -111,25 +116,26 @@ int main(int argc, char **argv) {
 
 //  returns validated csr
     CSRGraph csr = return_csr(&e,directed);
+    auto t2 = Clock::now();
     float* weights = csr.weights;
     int* col_idx = csr.col_index;
     int* row_offsets = csr.row_offset;
-    printf("Row_Offset:\n");
-    for(int i=0;i<=csr.V;i++){
-        printf("%d    ",row_offsets[i]);
-    }printf("\n");
+    // printf("Row_Offset:\n");
+    // for(int i=0;i<=csr.V;i++){
+    //     printf("%d    ",row_offsets[i]);
+    // }printf("\n");
 
-    printf("Column Index:\n");
-    for(int i=0;i<csr.E;i++){
-        printf("%d   ",col_idx[i]);
-    }
-    printf("\n");
+    // printf("Column Index:\n");
+    // for(int i=0;i<csr.E;i++){
+    //     printf("%d   ",col_idx[i]);
+    // }
+    // printf("\n");
 
-    printf("Weight:\n");
-    for(int i=0;i<csr.E;i++){
-        printf("%f  ",weights[i]);
-    }
-    printf("\n");
+    // printf("Weight:\n");
+    // for(int i=0;i<csr.E;i++){
+    //     printf("%f  ",weights[i]);
+    // }
+    // printf("\n");
 
     
 
@@ -153,9 +159,20 @@ int main(int argc, char **argv) {
     // }
     printf("Djikstras distances : \n");
     float* dist = djikstras(&csr,0);
-    for(int i=0;i<e.V;i++){
-        printf("%f  ",dist[i]);
-    }
+    auto t3 = Clock::now();
+    // for(int i=0;i<e.V;i++){
+    //     printf("%f  ",dist[i]);
+    // }
+
+    double read_ms   = std::chrono::duration<double, std::milli>(t1 - t0).count();
+    double csr_ms     = std::chrono::duration<double, std::milli>(t2 - t1).count();
+    double dijkstra_ms = std::chrono::duration<double, std::milli>(t3 - t2).count();
+
+    printf("\n--- Timing ---\n");
+    printf("Read graph   : %.4f ms\n", read_ms);
+    printf("Build CSR    : %.4f ms\n", csr_ms);
+    printf("Dijkstra     : %.4f ms\n", dijkstra_ms);
+    printf("Total (excl. I/O print) : %.4f ms\n", csr_ms + dijkstra_ms);
 
     free(e.edges);
     free_csr(&csr);
