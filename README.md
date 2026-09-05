@@ -280,3 +280,13 @@ Prints the full `row_offset`, `col_index`, and `weights` arrays to stdout for ma
 ./test/csr_convert graphs/sample_graph.txt --undirected --dump
 ```
 # CUDA_graph_traversal
+
+
+## commands to execute and run files : 
+#### sssp_cpu : 
+```bash
+g++ -I../include sssp_cpu.cpp csr.cpp -o sssp_cpu.o
+
+ ./sssp_cpu.o ../graphs/graph1.edgelist 
+
+```

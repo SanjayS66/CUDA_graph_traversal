@@ -1,3 +1,5 @@
+//ssr_cpu.h
+
 #include <cstdio>  
 #include <cstdlib> 
 #include <cstring> 
@@ -8,7 +10,7 @@
 #include <vector>
 #include <utility> 
 
-Timer t_djikstra,t_edge,t_csr;
+Timer t_bellman,t_edge,t_csr;
 
 EdgeListGraph return_edgelist(char* input_path){
     EdgeListGraph g;
@@ -32,22 +34,13 @@ CSRGraph return_csr(EdgeListGraph* e,int directed){
 }
 
 //DJikstras function 
-float* djikstras(CSRGraph* csr,int src){
+float* bellman_ford(CSRGraph* csr,int src){
     int V = csr->V;
     int E = csr->E;
     int* row_offset = csr->row_offset;
     int* col_idx = csr->col_index;
     float* weights = csr->weights;
-    
-    //priority queue
-    using NodeDistPair = std::pair<float, int>;
-
-    std::priority_queue<
-        NodeDistPair,                //tells what data is stored 
-        std::vector<NodeDistPair>,   //tells to store elements of pq as cpp vector
-        std::greater<NodeDistPair>   //flips default max heap to use min heap
-    > pq;
-    pq.push({0.0f, src});
+    bool changed;
 
     float* dist = (float*)malloc(V*sizeof(float)); 
     for(int i=0;i<V;i++){
@@ -55,24 +48,26 @@ float* djikstras(CSRGraph* csr,int src){
     }
     dist[src] = 0;
 
-
+    int i =0 ;
     //main fnc logic
-    while(!pq.empty()){
-        float distance = pq.top().first;
-        int u = pq.top().second;
-        pq.pop();
+    changed = true;
+    while(i < V - 1 && changed){
+        changed = false;
 
-        if (distance > dist[u]) continue;
+        for(int u = 0; u < V; u++){                          // for every vertex u
+            for(int k = row_offset[u]; k < row_offset[u+1]; k++){  // for every edge (u -> v)
+                int v = col_idx[k];
+                float w = weights[k];
 
-        for(int i = row_offset[u]; i < row_offset[u+1]; i++){
-            int v = col_idx[i];
-            if(dist[v] > distance + weights[i]){
-                dist[v] = distance + weights[i];
-                pq.push({dist[u],v});
+                if(dist[u] + w < dist[v]){
+                    dist[v] = dist[u] + w;
+                    changed = true;
+                }
             }
         }
-    }
 
+        i++;
+    }
     return dist;
 }
 
@@ -158,10 +153,10 @@ int main(int argc, char **argv) {
     //     printf("  max out-deg   : %d\n", max_deg);
     //     printf("  avg out-deg   : %.3f\n", (double)csr.E / csr.V);
     // }
-    timer_start(&t_djikstra);
-    printf("Djikstras distances : \n");
-    float* dist = djikstras(&csr,0);
-    timer_stop(&t_djikstra);
+    timer_start(&t_bellman);
+    printf("BellMan_Ford distances : \n");
+    float* dist = bellman_ford(&csr,0);
+    timer_stop(&t_bellman);
     
     // for(int i=0;i<e.V;i++){
     //     printf("%f  ",dist[i]);
@@ -169,13 +164,13 @@ int main(int argc, char **argv) {
 
     double read_ms   = timer_elapsed_ms(&t_edge);
     double csr_ms     = timer_elapsed_ms(&t_csr);
-    double dijkstra_ms = timer_elapsed_ms(&t_djikstra);
+    double bellman_ms = timer_elapsed_ms(&t_bellman);
 
     printf("\n--- Timing ---\n");
     printf("Read graph   : %.4f ms\n", read_ms);
     printf("Build CSR    : %.4f ms\n", csr_ms);
-    printf("Dijkstra     : %.4f ms\n", dijkstra_ms);
-    printf("Total (excl. I/O print) : %.4f ms\n", csr_ms + dijkstra_ms);
+    printf("BellMan FOrd    : %.4f ms\n", bellman_ms);
+    printf("Total (excl. I/O print) : %.4f ms\n", csr_ms + bellman_ms);
 
     free(e.edges);
     free_csr(&csr);

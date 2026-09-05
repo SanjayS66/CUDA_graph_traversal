@@ -1,11 +1,21 @@
+//cuda_utils.h
+
 #ifndef CUDA_UTILS_H
 #define CUDA_UTILS_H
-
+#include <cstdio>
+#include <cstdlib>
 #include "csr.h"
 #include <cuda_runtime.h>
 
-#define CUDA_CHECK(call) /* ... */
-
+#define CUDA_CHECK(call)                                                    \
+    do {                                                                    \
+        cudaError_t err = call;                                            \
+        if (err != cudaSuccess) {                                          \
+            fprintf(stderr, "CUDA error at %s:%d: %s\n",                   \
+                    __FILE__, __LINE__, cudaGetErrorString(err));          \
+            exit(EXIT_FAILURE);                                            \
+        }                                                                  \
+    } while (0)
 struct DeviceCSR {    //deviceCSR differnet because it has to be stored in the GPU memory
     int V, E;
     int* row_offset;
