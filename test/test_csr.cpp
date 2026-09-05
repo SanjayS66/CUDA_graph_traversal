@@ -1,7 +1,7 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <csr.h>
+#include <cstdio>  
+#include <cstdlib> 
+#include <cstring> 
+#include "csr.h"
 
 //main fnc
 int main(int argc, char **argv) {
