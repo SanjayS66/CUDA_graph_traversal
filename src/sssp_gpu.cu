@@ -194,6 +194,7 @@ int main(int argc, char **argv) {
 
     free(e.edges);
     free_csr(&csr);
+    free(dist);   
 
     return 0;
 }
