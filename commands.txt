@@ -11,3 +11,7 @@ nvcc -Iinclude src/sssp/sssp_gpu_t_p_e.cu src/common_stuff/csr.cpp src/common_st
 3. compile and run sssp_gpu_t_p_w
 nvcc -Iinclude src/sssp/sssp_gpu_t_p_w.cu src/common_stuff/csr.cpp src/common_stuff/cuda_utils.cu src/common_stuff/timer.cpp -o build/sssp_gpu_tpw.o
 ./build/sssp_gpu_tpw.o graphs/sample_graph.txt
+
+4. compile and run unified benchmark (CPU vs TPV vs TPE vs TPW on any graph)
+nvcc -Iinclude test/test_sssp.cu src/common_stuff/csr.cpp src/common_stuff/cuda_utils.cu src/common_stuff/timer.cpp -o build/benchmark_sssp
+./build/benchmark_sssp graphs/graph1.edgelist
