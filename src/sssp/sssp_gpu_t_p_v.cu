@@ -44,7 +44,7 @@ __global__ void relax_kernel(int* row_offset,int* col_idx,float *weights,float* 
     }
 }
 
-__host__ float* bellman_GPU(CSRGraph* csr, int src){
+__host__ float* bellman_GPU_tpv(CSRGraph* csr, int src){
     DeviceCSR d_csr = copy_csr_to_device(csr);
 
     int V = d_csr.V;
@@ -175,7 +175,7 @@ int main(int argc, char **argv) {
     // }
     timer_start(&t_bellman);
     printf("BellMan_Ford distances : \n");
-    float* dist = bellman_GPU(&csr,0);
+    float* dist = bellman_GPU_tpv(&csr,0);
     timer_stop(&t_bellman);
     
     // for(int i=0;i<e.V;i++){

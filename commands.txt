@@ -1,0 +1,13 @@
+// compile and run commands 
+
+1. compile and run sssp_gpu_t_p_v
+nvcc -Iinclude src/sssp/sssp_gpu_t_p_v.cu src/common_stuff/csr.cpp src/common_stuff/cuda_utils.cu src/common_stuff/timer.cpp -o build/sssp_gpu_tpv.o
+./build/sssp_gpu_tpv.o graphs/sample_graph.txt
+
+2. compile and run sssp_gpu_t_p_e
+nvcc -Iinclude src/sssp/sssp_gpu_t_p_e.cu src/common_stuff/csr.cpp src/common_stuff/cuda_utils.cu src/common_stuff/timer.cpp -o build/sssp_gpu_tpe.o
+./build/sssp_gpu_tpe.o graphs/sample_graph.txt
+
+3. compile and run sssp_gpu_t_p_w
+nvcc -Iinclude src/sssp/sssp_gpu_t_p_w.cu src/common_stuff/csr.cpp src/common_stuff/cuda_utils.cu src/common_stuff/timer.cpp -o build/sssp_gpu_tpw.o
+./build/sssp_gpu_tpw.o graphs/sample_graph.txt

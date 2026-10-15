@@ -32,22 +32,3 @@ void free_device_csr(DeviceCSR* d_csr){
     cudaFree(d_csr->col_index);
     cudaFree(d_csr->weights);
 }
-
-__device__ float atomicMinFloat(float* addr, float value){
-    int* addr_as_int = (int*)addr;
-    int old = *addr_as_int;
-    int assumed;
-
-    // Only try to update if our candidate is actually smaller than
-    // whatever is currently stored (bit-reinterpreted back to float).
-    while (value < __int_as_float(old)) {
-        assumed = old;
-        old = atomicCAS(addr_as_int, assumed, __float_as_int(value));
-        // If atomicCAS's return equals what we assumed, our write succeeded.
-        // If not, another thread updated it in between — loop and retry
-        // against the newer value.
-        if (assumed == old) break;
-    }
-
-    return __int_as_float(old);
-}

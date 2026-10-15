@@ -34,7 +34,19 @@ void free_device_csr(DeviceCSR* d_csr);   //Free GPU memory
 }
 #endif
 
-// Device-only function — not extern "C", only usable inside .cu files
-__device__ float atomicMinFloat(float* addr, float value);
+// Device-only helper function — inlined inside .cu files
+inline __device__ float atomicMinFloat(float* addr, float value) {
+    int* addr_as_int = (int*)addr;
+    int old = *addr_as_int;
+    int assumed;
+
+    while (value < __int_as_float(old)) {
+        assumed = old;
+        old = atomicCAS(addr_as_int, assumed, __float_as_int(value));
+        if (assumed == old) break;
+    }
+
+    return __int_as_float(old);
+}
 
 #endif
