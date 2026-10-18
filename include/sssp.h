@@ -12,8 +12,10 @@ extern "C" {
 // CPU implementation of the Djikstras algo
 float* bellman_ford(CSRGraph* csr, int src);
 
-// GPU counterpart — same contract as djikstras(), implemented in sssp_gpu.cu
-float* bellman_GPU(CSRGraph* csr, int src);
+// GPU implementations using different traversal strategies.
+float *bellman_GPU_tpe(const CSRGraph *csr, int src);
+float *bellman_GPU_tpw(const CSRGraph *csr, int src);
+float *bellman_GPU_tpv(const CSRGraph *csr, int src);
 
 #ifdef __cplusplus
 }
