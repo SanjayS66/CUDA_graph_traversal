@@ -15,3 +15,19 @@ nvcc -Iinclude src/sssp/sssp_gpu_t_p_w.cu src/common_stuff/csr.cpp src/common_st
 4. compile and run unified benchmark (CPU vs TPV vs TPE vs TPW on any graph)
 nvcc -Iinclude test/test_sssp.cu src/common_stuff/csr.cpp src/common_stuff/cuda_utils.cu src/common_stuff/timer.cpp -o build/benchmark_sssp
 ./build/benchmark_sssp graphs/graph1.edgelist
+
+g++ -std=c++11 -Iinclude \
+  src/bfs/bfs_cpu.cpp \
+  src/common_stuff/csr.cpp \
+  src/common_stuff/timer.cpp \
+  -o build/bfs_cpu
+
+./build/bfs_cpu graphs/sample_graph.txt [--undirected] [--dump]
+
+5. compile and run BFS GPU thread-per-frontier-vertex
+nvcc -std=c++11 -Iinclude src/bfs/bfs_gpu_t_p_v.cu src/common_stuff/csr.cpp src/common_stuff/cuda_utils.cu src/common_stuff/timer.cpp -o build/bfs_gpu_tpv
+./build/bfs_gpu_tpv graphs/sample_graph.txt [--undirected] [--dump]
+
+6. compile and run BFS CPU
+g++ -std=c++11 -Iinclude src/bfs/bfs_cpu.cpp src/common_stuff/csr.cpp src/common_stuff/timer.cpp -o build/bfs_cpu
+./build/bfs_cpu graphs/sample_graph.txt [--undirected] [--dump]

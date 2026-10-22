@@ -37,6 +37,14 @@ BFSResult bfs(CSRGraph* csr, int source,int target) {
     int* row_offset = csr->row_offset;
     int* col_idx = csr->col_index;
     
+    if (!csr || csr->V <= 0 ||
+    source < 0 || source >= csr->V ||
+    target < 0 || target >= csr->V) {
+    fprintf(stderr, "Invalid BFS source or target\n");
+    exit(1);
+    }
+
+
     //initialise the result structure arrays and other vars
     BFSResult result;
     result.traversal_order = (int*)malloc(V * sizeof(int));
@@ -183,12 +191,16 @@ int main(int argc, char **argv) {
     printf("Target Found : %s\n", res.found ? "Yes" : "No");
     printf("Total (excl. I/O print) : %.4f ms\n", csr_ms + bfs_ms);
 
-    for(int i=0;i<csr.V;i++){
-        printf("%d  ",res.traversal_order[i]);
+    if (dump) {
+        printf("BFS traversal: ");
+        for (int i = 0; i < res.num_visited; i++) {
+            printf("%d ", res.traversal_order[i]);
+        }
+        printf("\n");
     }
     free(e.edges);
     free_csr(&csr);
+    free(res.traversal_order);
 
     return 0;
 }
-
