@@ -26,9 +26,12 @@ DeviceCSR copy_csr_to_device(const CSRGraph* h_csr){
     return d_csr;
 }
 
-void free_device_csr(DeviceCSR* d_csr){
-    // release each device allocation made in copy_csr_to_device
-    cudaFree(d_csr->row_offset);
-    cudaFree(d_csr->col_index);
-    cudaFree(d_csr->weights);
+void free_device_csr(DeviceCSR* d_csr) {
+    CUDA_CHECK(cudaFree(d_csr->row_offset));
+    CUDA_CHECK(cudaFree(d_csr->col_index));
+    CUDA_CHECK(cudaFree(d_csr->weights));
+
+    d_csr->row_offset = NULL;
+    d_csr->col_index = NULL;
+    d_csr->weights = NULL;
 }

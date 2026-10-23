@@ -32,11 +32,7 @@ CSRGraph return_csr(EdgeListGraph* e,int directed){
 }
 
 //Breadth First Search function CPU
-BFSResult bfs(CSRGraph* csr, int source,int target) {
-    int V = csr->V;
-    int* row_offset = csr->row_offset;
-    int* col_idx = csr->col_index;
-    
+BFSResult bfs(const CSRGraph* csr, int source,int target) {
     if (!csr || csr->V <= 0 ||
     source < 0 || source >= csr->V ||
     target < 0 || target >= csr->V) {
@@ -44,7 +40,10 @@ BFSResult bfs(CSRGraph* csr, int source,int target) {
     exit(1);
     }
 
-
+    int V = csr->V;
+    int* row_offset = csr->row_offset;
+    int* col_idx = csr->col_index;
+    
     //initialise the result structure arrays and other vars
     BFSResult result;
     result.traversal_order = (int*)malloc(V * sizeof(int));

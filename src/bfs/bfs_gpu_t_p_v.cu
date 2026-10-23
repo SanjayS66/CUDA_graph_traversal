@@ -14,9 +14,7 @@ __global__ void bfs_expand_kernel(
     int current_size,
     int *next_frontier,
     int *next_size,
-    int *visited,
-    int target,
-    int *found
+    int *visited
 ) {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
     if (tid >= current_size) {
@@ -29,37 +27,31 @@ __global__ void bfs_expand_kernel(
         if (atomicCAS(&visited[v], 0, 1) == 0) {
             int position = atomicAdd(next_size, 1);
             next_frontier[position] = v;
-            if (v == target) {
-                atomicExch(found, 1);
-            }
         }
     }
 }
 
 BFSResult bfs_gpu_tpv(const CSRGraph *csr, int source, int target) {
-    if (csr == nullptr || csr->V <= 0 ||
+    if (csr == NULL || csr->V <= 0 ||
         source < 0 || source >= csr->V ||
         target < 0 || target >= csr->V) {
         fprintf(stderr, "Invalid BFS source or target\n");
-        exit(EXIT_FAILURE);
+        exit(1);
     }
 
     const int V = csr->V;
     DeviceCSR d_csr = copy_csr_to_device(csr);
-    int *d_current_frontier = nullptr;
-    int *d_next_frontier = nullptr;
-    int *d_next_size = nullptr;
-    int *d_visited = nullptr;
-    int *d_found = nullptr;
+    int *d_current_frontier = NULL;
+    int *d_next_frontier = NULL;
+    int *d_next_size = NULL;
+    int *d_visited = NULL;
 
     CUDA_CHECK(cudaMalloc(&d_current_frontier, V * sizeof(int)));
     CUDA_CHECK(cudaMalloc(&d_next_frontier, V * sizeof(int)));
     CUDA_CHECK(cudaMalloc(&d_next_size, sizeof(int)));
     CUDA_CHECK(cudaMalloc(&d_visited, V * sizeof(int)));
-    CUDA_CHECK(cudaMalloc(&d_found, sizeof(int)));
 
     CUDA_CHECK(cudaMemset(d_visited, 0, V * sizeof(int)));
-    CUDA_CHECK(cudaMemset(d_found, 0, sizeof(int)));
 
     CUDA_CHECK(cudaMemcpy(
         d_current_frontier, &source, sizeof(int), cudaMemcpyHostToDevice));
@@ -68,27 +60,38 @@ BFSResult bfs_gpu_tpv(const CSRGraph *csr, int source, int target) {
         d_visited + source, &one, sizeof(int), cudaMemcpyHostToDevice));
 
     BFSResult result;
-    result.traversal_order = static_cast<int *>(malloc(V * sizeof(int)));
+    result.traversal_order = (int *)malloc(V * sizeof(int));
     result.num_visited = 0;
     result.found = (source == target);
-    if (result.traversal_order == nullptr) {
+    if (result.traversal_order == NULL) {
         fprintf(stderr, "Memory allocation failed for BFS result\n");
-        exit(EXIT_FAILURE);
+        exit(1);
     }
     result.traversal_order[result.num_visited++] = source;
 
-    int *host_frontier = static_cast<int *>(malloc(V * sizeof(int)));
-    if (host_frontier == nullptr) {
+    int *host_frontier = (int *)malloc(V * sizeof(int));
+    if (host_frontier == NULL) {
         fprintf(stderr, "Memory allocation failed for BFS frontier\n");
         free(result.traversal_order);
-        exit(EXIT_FAILURE);
+        exit(1);
     }
+    host_frontier[0] = source;
 
     int current_size = 1;
     int next_size = 0;
     const int block_size = 256;
 
     while (current_size > 0 && !result.found) {
+        for (int i = 0; i < current_size; ++i) {
+            if (host_frontier[i] == target) {
+                result.found = true;
+                break;
+            }
+        }
+        if (result.found) {
+            break;
+        }
+
         CUDA_CHECK(cudaMemset(d_next_size, 0, sizeof(int)));
 
         int block_count = (current_size + block_size - 1) / block_size;
@@ -99,18 +102,12 @@ BFSResult bfs_gpu_tpv(const CSRGraph *csr, int source, int target) {
             current_size,
             d_next_frontier,
             d_next_size,
-            d_visited,
-            target,
-            d_found);
+            d_visited);
         CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaDeviceSynchronize());
 
-        int h_found = 0;
         CUDA_CHECK(cudaMemcpy(
             &next_size, d_next_size, sizeof(int), cudaMemcpyDeviceToHost));
-        CUDA_CHECK(cudaMemcpy(
-            &h_found, d_found, sizeof(int), cudaMemcpyDeviceToHost));
-        result.found = h_found != 0;
 
         if (next_size > 0) {
             CUDA_CHECK(cudaMemcpy(
@@ -146,7 +143,6 @@ BFSResult bfs_gpu_tpv(const CSRGraph *csr, int source, int target) {
     CUDA_CHECK(cudaFree(d_next_frontier));
     CUDA_CHECK(cudaFree(d_next_size));
     CUDA_CHECK(cudaFree(d_visited));
-    CUDA_CHECK(cudaFree(d_found));
     return result;
 }
 

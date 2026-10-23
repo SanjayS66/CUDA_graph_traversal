@@ -50,7 +50,7 @@ __global__ void relax_kernel(int* row_offset, int* col_idx, float *weights, floa
 }
 
 
-__host__ float* bellman_GPU_tpw(CSRGraph* csr, int src){
+__host__ float* bellman_GPU_wpv(CSRGraph* csr, int src){
     DeviceCSR d_csr = copy_csr_to_device(csr);
 
     int V = d_csr.V;
@@ -58,7 +58,7 @@ __host__ float* bellman_GPU_tpw(CSRGraph* csr, int src){
 
     float* d_dist;
     size_t size = V*sizeof(float);
-    cudaMalloc((void**)&d_dist,size);
+    CUDA_CHECK(cudaMalloc((void**)&d_dist,size));
 
     int* d_changed;
     CUDA_CHECK(cudaMalloc((void**)&d_changed, sizeof(int)));
@@ -140,9 +140,9 @@ int main(int argc, char **argv) {
     timer_start(&t_csr);
     CSRGraph csr = return_csr(&e,directed);
     timer_stop(&t_csr);
-    float* weights = csr.weights;
-    int* col_idx = csr.col_index;
-    int* row_offsets = csr.row_offset;
+    // float* weights = csr.weights;
+    // int* col_idx = csr.col_index;
+    // int* row_offsets = csr.row_offset;
     // printf("Row_Offset:\n");
     // for(int i=0;i<=csr.V;i++){
     //     printf("%d    ",row_offsets[i]);
@@ -182,7 +182,7 @@ int main(int argc, char **argv) {
     // }
     timer_start(&t_bellman);
     printf("BellMan_Ford distances : \n");
-    float* dist = bellman_GPU_tpw(&csr,0);
+    float* dist = bellman_GPU_wpv(&csr,0);
     timer_stop(&t_bellman);
     
     // for(int i=0;i<e.V;i++){
@@ -198,6 +198,14 @@ int main(int argc, char **argv) {
     printf("Build CSR    : %.4f ms\n", csr_ms);
     printf("BellMan FOrd    : %.4f ms\n", bellman_ms);
     printf("Total (excl. I/O print) : %.4f ms\n", csr_ms + bellman_ms);
+
+
+    if(dump){
+        printf("SSSP Distances : \n");
+        for(int i=0;i<csr.V;i++){
+            printf("Vertex %d : Distance from source = %.3f\n", i, dist[i]);
+        }
+    }
 
     free(e.edges);
     free_csr(&csr);

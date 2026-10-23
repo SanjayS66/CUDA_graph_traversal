@@ -17,6 +17,7 @@ typedef struct {
 
 BFSResult bfs(const CSRGraph *csr, int source, int target);
 BFSResult bfs_gpu_tpv(const CSRGraph *csr, int source, int target);
+BFSResult bfs_gpu_wpv(const CSRGraph *csr, int source, int target);
 
 #ifdef __cplusplus
 }

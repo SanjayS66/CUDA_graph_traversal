@@ -152,9 +152,9 @@ int main(int argc, char **argv) {
     timer_start(&t_csr);
     CSRGraph csr = return_csr(&e,directed);
     timer_stop(&t_csr);
-    float* weights = csr.weights;
-    int* col_idx = csr.col_index;
-    int* row_offsets = csr.row_offset;
+    // float* weights = csr.weights;
+    // int* col_idx = csr.col_index;
+    // int* row_offsets = csr.row_offset;
     // printf("Row_Offset:\n");
     // for(int i=0;i<=csr.V;i++){
     //     printf("%d    ",row_offsets[i]);
@@ -210,6 +210,13 @@ int main(int argc, char **argv) {
     printf("Build CSR    : %.4f ms\n", csr_ms);
     printf("BellMan FOrd    : %.4f ms\n", bellman_ms);
     printf("Total (excl. I/O print) : %.4f ms\n", csr_ms + bellman_ms);
+
+    if(dump){
+        printf("SSSP Distances : \n");
+        for(int i=0;i<csr.V;i++){
+            printf("Vertex %d : Distance from source = %.3f\n", i, dist[i]);
+        }
+    }
 
     free(e.edges);
     free_csr(&csr);

@@ -13,9 +13,9 @@ extern "C" {
 float* bellman_ford(CSRGraph* csr, int src);
 
 // GPU implementations using different traversal strategies.
-float *bellman_GPU_tpe(const CSRGraph *csr, int src);
-float *bellman_GPU_tpw(const CSRGraph *csr, int src);
-float *bellman_GPU_tpv(const CSRGraph *csr, int src);
+float* bellman_GPU_tpe(CSRGraph* csr, int src);
+float* bellman_GPU_wpv(CSRGraph* csr, int src);
+float* bellman_GPU_tpv(CSRGraph* csr, int src);
 
 #ifdef __cplusplus
 }

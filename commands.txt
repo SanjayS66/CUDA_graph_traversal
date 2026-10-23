@@ -1,33 +1,91 @@
-// compile and run commands 
+# CUDA Graph Traversal: build and run commands
 
-1. compile and run sssp_gpu_t_p_v
-nvcc -Iinclude src/sssp/sssp_gpu_t_p_v.cu src/common_stuff/csr.cpp src/common_stuff/cuda_utils.cu src/common_stuff/timer.cpp -o build/sssp_gpu_tpv.o
-./build/sssp_gpu_tpv.o graphs/sample_graph.txt
+mkdir -p build
 
-2. compile and run sssp_gpu_t_p_e
-nvcc -Iinclude src/sssp/sssp_gpu_t_p_e.cu src/common_stuff/csr.cpp src/common_stuff/cuda_utils.cu src/common_stuff/timer.cpp -o build/sssp_gpu_tpe.o
-./build/sssp_gpu_tpe.o graphs/sample_graph.txt
+# 1. Build and run SSSP CPU Bellman-Ford
+g++ -std=c++11 -Wall -Wextra -Iinclude \
+  src/sssp/sssp_cpu.cpp \
+  src/common_stuff/csr.cpp \
+  src/common_stuff/timer.cpp \
+  -o build/sssp_cpu
+./build/sssp_cpu graphs/sample_graph.txt
+# Example with optional arguments:
+# ./build/sssp_cpu graphs/sample_graph.txt --undirected --dump
 
-3. compile and run sssp_gpu_t_p_w
-nvcc -Iinclude src/sssp/sssp_gpu_t_p_w.cu src/common_stuff/csr.cpp src/common_stuff/cuda_utils.cu src/common_stuff/timer.cpp -o build/sssp_gpu_tpw.o
-./build/sssp_gpu_tpw.o graphs/sample_graph.txt
+# 2. Build and run SSSP GPU thread-per-vertex
+nvcc -std=c++11 -Iinclude \
+  src/sssp/sssp_gpu_t_p_v.cu \
+  src/common_stuff/csr.cpp \
+  src/common_stuff/cuda_utils.cu \
+  src/common_stuff/timer.cpp \
+  -o build/sssp_gpu_tpv
+./build/sssp_gpu_tpv graphs/sample_graph.txt
 
-4. compile and run unified benchmark (CPU vs TPV vs TPE vs TPW on any graph)
-nvcc -Iinclude test/test_sssp.cu src/common_stuff/csr.cpp src/common_stuff/cuda_utils.cu src/common_stuff/timer.cpp -o build/benchmark_sssp
+# 3. Build and run SSSP GPU thread-per-edge
+nvcc -std=c++11 -Iinclude \
+  src/sssp/sssp_gpu_t_p_e.cu \
+  src/common_stuff/csr.cpp \
+  src/common_stuff/cuda_utils.cu \
+  src/common_stuff/timer.cpp \
+  -o build/sssp_gpu_tpe
+./build/sssp_gpu_tpe graphs/sample_graph.txt
+
+# 4. Build and run SSSP GPU warp-per-vertex
+nvcc -std=c++11 -Iinclude \
+  src/sssp/sssp_gpu_w_p_v.cu \
+  src/common_stuff/csr.cpp \
+  src/common_stuff/cuda_utils.cu \
+  src/common_stuff/timer.cpp \
+  -o build/sssp_gpu_wpv
+./build/sssp_gpu_wpv graphs/sample_graph.txt
+
+# 5. Build and run the unified SSSP benchmark
+# The optional arguments are: --undirected, --dump, and --src <vertex>.
+nvcc -std=c++11 -Iinclude \
+  test/test_sssp.cu \
+  src/common_stuff/csr.cpp \
+  src/common_stuff/cuda_utils.cu \
+  src/common_stuff/timer.cpp \
+  -o build/benchmark_sssp
 ./build/benchmark_sssp graphs/graph1.edgelist
+# Example with optional arguments:
+# ./build/benchmark_sssp graphs/graph1.edgelist --undirected --dump --src 0
 
-g++ -std=c++11 -Iinclude \
+# 6. Build and run CPU BFS
+g++ -std=c++11 -Wall -Wextra -Iinclude \
   src/bfs/bfs_cpu.cpp \
   src/common_stuff/csr.cpp \
   src/common_stuff/timer.cpp \
   -o build/bfs_cpu
+./build/bfs_cpu graphs/sample_graph.txt
+# Example with optional arguments:
+# ./build/bfs_cpu graphs/sample_graph.txt --undirected --dump
 
-./build/bfs_cpu graphs/sample_graph.txt [--undirected] [--dump]
+# 7. Build and run BFS GPU thread-per-frontier-vertex
+nvcc -std=c++11 -Iinclude \
+  src/bfs/bfs_gpu_t_p_v.cu \
+  src/common_stuff/csr.cpp \
+  src/common_stuff/cuda_utils.cu \
+  src/common_stuff/timer.cpp \
+  -o build/bfs_gpu_tpv
+./build/bfs_gpu_tpv graphs/sample_graph.txt
+# Example with optional arguments:
+# ./build/bfs_gpu_tpv graphs/sample_graph.txt --undirected --dump
 
-5. compile and run BFS GPU thread-per-frontier-vertex
-nvcc -std=c++11 -Iinclude src/bfs/bfs_gpu_t_p_v.cu src/common_stuff/csr.cpp src/common_stuff/cuda_utils.cu src/common_stuff/timer.cpp -o build/bfs_gpu_tpv
-./build/bfs_gpu_tpv graphs/sample_graph.txt [--undirected] [--dump]
+# 8. Build and run BFS GPU warp-per-frontier-vertex
+nvcc -std=c++11 -Iinclude \
+  src/bfs/bfs_gpu_w_p_v.cu \
+  src/common_stuff/csr.cpp \
+  src/common_stuff/cuda_utils.cu \
+  src/common_stuff/timer.cpp \
+  -o build/bfs_gpu_wpv
+./build/bfs_gpu_wpv graphs/sample_graph.txt
+# Example with optional arguments:
+# ./build/bfs_gpu_wpv graphs/sample_graph.txt --undirected --dump
 
-6. compile and run BFS CPU
-g++ -std=c++11 -Iinclude src/bfs/bfs_cpu.cpp src/common_stuff/csr.cpp src/common_stuff/timer.cpp -o build/bfs_cpu
-./build/bfs_cpu graphs/sample_graph.txt [--undirected] [--dump]
+# 9. Build and run CSR conversion test
+g++ -std=c++11 -Wall -Wextra -Iinclude \
+  test/test_csr.cpp \
+  src/common_stuff/csr.cpp \
+  -o build/test_csr
+./build/test_csr graphs/sample_graph.txt
