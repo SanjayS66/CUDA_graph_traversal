@@ -51,7 +51,18 @@ nvcc -std=c++11 -Iinclude \
 # Example with optional arguments:
 # ./build/benchmark_sssp graphs/graph1.edgelist --undirected --dump --src 0
 
-# 6. Build and run CPU BFS
+# 6. Build and run the unified BFS benchmark
+nvcc -std=c++11 -Xcompiler=-Wall,-Wextra -Iinclude \
+  test/test_bfs.cu \
+  src/common_stuff/csr.cpp \
+  src/common_stuff/cuda_utils.cu \
+  src/common_stuff/timer.cpp \
+  -o build/test_bfs
+./build/test_bfs graphs/sample_graph.txt 0 4
+# Optional arguments:
+# ./build/test_bfs graphs/sample_graph.txt 0 4 --undirected --dump
+
+# 7. Build and run CPU BFS
 g++ -std=c++11 -Wall -Wextra -Iinclude \
   src/bfs/bfs_cpu.cpp \
   src/common_stuff/csr.cpp \
@@ -61,7 +72,7 @@ g++ -std=c++11 -Wall -Wextra -Iinclude \
 # Example with optional arguments:
 # ./build/bfs_cpu graphs/sample_graph.txt --undirected --dump
 
-# 7. Build and run BFS GPU thread-per-frontier-vertex
+# 8. Build and run BFS GPU thread-per-frontier-vertex
 nvcc -std=c++11 -Iinclude \
   src/bfs/bfs_gpu_t_p_v.cu \
   src/common_stuff/csr.cpp \
@@ -72,7 +83,7 @@ nvcc -std=c++11 -Iinclude \
 # Example with optional arguments:
 # ./build/bfs_gpu_tpv graphs/sample_graph.txt --undirected --dump
 
-# 8. Build and run BFS GPU warp-per-frontier-vertex
+# 9. Build and run BFS GPU warp-per-frontier-vertex
 nvcc -std=c++11 -Iinclude \
   src/bfs/bfs_gpu_w_p_v.cu \
   src/common_stuff/csr.cpp \
@@ -83,7 +94,7 @@ nvcc -std=c++11 -Iinclude \
 # Example with optional arguments:
 # ./build/bfs_gpu_wpv graphs/sample_graph.txt --undirected --dump
 
-# 9. Build and run CSR conversion test
+# 10. Build and run CSR conversion test
 g++ -std=c++11 -Wall -Wextra -Iinclude \
   test/test_csr.cpp \
   src/common_stuff/csr.cpp \

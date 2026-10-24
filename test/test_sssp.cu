@@ -7,9 +7,6 @@
 #include "timer.h"
 #include "sssp.h"
 
-// ============================================================================
-// CUDA Kernels for the 3 SSSP Strategies
-// ============================================================================
 
 // 1. Thread-Per-Vertex (T-P-V)
 __global__ void relax_kernel_tpv(int* row_offset, int* col_idx, float* weights, float* dist, int V, int* changed_flag) {

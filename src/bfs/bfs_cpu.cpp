@@ -1,5 +1,4 @@
 //bfs_cpu.h
-
 #include <cstdio>  
 #include <cstdlib> 
 #include <cstring> 
@@ -41,8 +40,6 @@ BFSResult bfs(const CSRGraph* csr, int source,int target) {
     }
 
     int V = csr->V;
-    int* row_offset = csr->row_offset;
-    int* col_idx = csr->col_index;
     
     //initialise the result structure arrays and other vars
     BFSResult result;
