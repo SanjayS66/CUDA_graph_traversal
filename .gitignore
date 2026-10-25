@@ -12,6 +12,8 @@ build/*
 # large graph file
 graphs/graph_large_sparse.edgelist
 graphs/graph_largest_sparse.edgelist
+graphs/gplus_combined.edgelist
+graphs/roadNet-CA.edgelist
 
 # Editor/OS junk (optional but common)
 .vscode/

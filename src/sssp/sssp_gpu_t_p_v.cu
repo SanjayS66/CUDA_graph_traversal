@@ -6,28 +6,6 @@
 #include "timer.h"
 #include "sssp.h"
 
-Timer t_bellman,t_edge,t_csr;
-
-EdgeListGraph return_edgelist(char* input_path){
-    EdgeListGraph g;
-    g = read_graph_from_file(input_path);
-    
-    printf("Read graph: V=%d E=%d from %s\n", g.V, g.E, input_path);
-    return g;
-}
-
-CSRGraph return_csr(EdgeListGraph* e,int directed){
-    CSRGraph csr;
-    csr = build_csr(e, directed);
-    if (!validate_csr(&csr)) {
-        fprintf(stderr, "CSR validation FAILED\n");
-        free(e->edges);
-        free_csr(&csr);
-        CSRGraph empty_csr = {0, 0, NULL, NULL, NULL};
-        return empty_csr;
-    }
-    return csr;
-}
 
 __global__ void relax_kernel(int* row_offset,int* col_idx,float *weights,float* dist,int V,int* changed_flag){
     int u = blockIdx.x * blockDim.x+ threadIdx.x;
@@ -44,7 +22,7 @@ __global__ void relax_kernel(int* row_offset,int* col_idx,float *weights,float* 
     }
 }
 
-__host__ float* bellman_GPU_tpv(CSRGraph* csr, int src){
+__host__ float* bellman_GPU_tpv(const CSRGraph* csr, int src){
     DeviceCSR d_csr = copy_csr_to_device(csr);
 
     int V = d_csr.V;
@@ -93,6 +71,7 @@ __host__ float* bellman_GPU_tpv(CSRGraph* csr, int src){
 
 //main fnc
 int main(int argc, char **argv) {
+    Timer t_bellman,t_edge,t_csr;
     if (argc < 2) {
         fprintf(stderr, "Usage: %s <input_file> [--undirected] [--dump]\n", argv[0]);
         return 1;
@@ -114,7 +93,7 @@ int main(int argc, char **argv) {
     }
 
     timer_start(&t_edge);
-    EdgeListGraph e = return_edgelist(input_path);
+    EdgeListGraph e = read_graph_from_file(input_path);
     timer_stop(&t_edge);
     printf("Graph Vertices (V): %d, Edges (E): %d\n", e.V, e.E);
 
@@ -131,7 +110,13 @@ int main(int argc, char **argv) {
 
 //  returns validated csr
     timer_start(&t_csr);
-    CSRGraph csr = return_csr(&e,directed);
+    CSRGraph csr = build_csr(&e, directed);
+    if (!validate_csr(&csr)) {
+        fprintf(stderr, "CSR validation FAILED\n");
+        free(e.edges);
+        free_csr(&csr);
+        return 1;
+    }
     timer_stop(&t_csr);
     // float* weights = csr.weights;
     // int* col_idx = csr.col_index;

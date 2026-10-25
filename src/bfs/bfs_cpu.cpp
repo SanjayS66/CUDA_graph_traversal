@@ -6,30 +6,6 @@
 #include "bfs.h"
 #include "timer.h"
 
-
-Timer t_bfs,t_edge,t_csr;
-
-EdgeListGraph return_edgelist(char* input_path){
-    EdgeListGraph g;
-    g = read_graph_from_file(input_path);
-    
-    printf("Read graph: V=%d E=%d from %s\n", g.V, g.E, input_path);
-    return g;
-}
-
-CSRGraph return_csr(EdgeListGraph* e,int directed){
-    CSRGraph csr;
-    csr = build_csr(e, directed);
-    if (!validate_csr(&csr)) {
-        fprintf(stderr, "CSR validation FAILED\n");
-        free(e->edges);
-        free_csr(&csr);
-        CSRGraph empty_csr = {0, 0, NULL, NULL, NULL};
-        return empty_csr;
-    }
-    return csr;
-}
-
 //Breadth First Search function CPU
 BFSResult bfs(const CSRGraph* csr, int source,int target) {
     if (!csr || csr->V <= 0 ||
@@ -91,6 +67,7 @@ BFSResult bfs(const CSRGraph* csr, int source,int target) {
 
 //main fnc
 int main(int argc, char **argv) {
+    Timer t_bfs,t_edge,t_csr;
     if (argc < 2) {
         fprintf(stderr, "Usage: %s <input_file> [--undirected] [--dump]\n", argv[0]);
         return 1;
@@ -112,7 +89,7 @@ int main(int argc, char **argv) {
     }
 
     timer_start(&t_edge);
-    EdgeListGraph e = return_edgelist(input_path);
+    EdgeListGraph e = read_graph_from_file(input_path);
     timer_stop(&t_edge);
     printf("Graph Vertices (V): %d, Edges (E): %d\n", e.V, e.E);
 
@@ -129,7 +106,13 @@ int main(int argc, char **argv) {
 
 //  returns validated csr
     timer_start(&t_csr);
-    CSRGraph csr = return_csr(&e,directed);
+    CSRGraph csr = build_csr(&e, directed);
+    if (!validate_csr(&csr)) {
+        fprintf(stderr, "CSR validation FAILED\n");
+        free(e.edges);
+        free_csr(&csr);
+        return 1;
+    }
     timer_stop(&t_csr);
     // printf("Row_Offset:\n");
     // for(int i=0;i<=csr.V;i++){
