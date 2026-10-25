@@ -453,11 +453,3 @@ Graph: `V = 102100`, `E = 12113501`, directed. Source vertex: `0`.
 
 Verification: all GPU implementations passed.
 
-## Development notes
-
-- Keep graph loading and CSR construction in `src/common_stuff/csr.cpp`.
-- Use `src/common_stuff/cuda_utils.cu` for device-side CSR allocation and
-  transfers.
-- Add new algorithm implementations under `src/bfs/` or `src/sssp/`.
-- Keep generated binaries and object files in `build/`.
-- Run `git diff --check` before committing changes.
