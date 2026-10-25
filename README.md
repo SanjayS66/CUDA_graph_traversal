@@ -1,292 +1,399 @@
-# PCAP Implementation
+# CUDA Graph Traversal
 
-Parallel Computing Assignment Project - CSR Graph Format with BFS and SSSP (CPU & GPU)
+This project implements graph preprocessing and graph traversal algorithms for
+CPU and CUDA GPU execution. Graphs are loaded from a weighted edge-list file,
+converted to **Compressed Sparse Row (CSR)** format, and then processed using:
 
-## Project Structure
+- Breadth-First Search (BFS)
+- Single-Source Shortest Paths (SSSP) using Bellman-Ford
+- CPU and GPU implementations for comparison
 
-```
+The GPU implementations use different mappings of graph work to CUDA threads
+and warps.
+
+## Features
+
+- Shared graph loading and CSR construction for all algorithms
+- Directed and undirected graph support
+- CSR validation and optional CSR dumping
+- CPU BFS
+- GPU BFS:
+  - Thread-per-frontier-vertex (TPV)
+  - Warp-per-frontier-vertex (WPV)
+- CPU Bellman-Ford SSSP
+- GPU Bellman-Ford:
+  - Thread-per-vertex (TPV)
+  - Thread-per-edge (TPE)
+  - Warp-per-vertex (WPV)
+- Unified BFS and SSSP benchmark programs
+- Timing of graph loading, CSR construction, and algorithm execution
+
+## Repository layout
+
+```text
 PCAP_implementation/
-│
-├── .gitignore                              # Ignores .o files, binaries, editor/OS junk
-├── PCAP_Synopsis_Draft.pdf                 # Project synopsis document
+├── commands.txt
+├── README.md
+├── PCAP_Synopsis_Draft.pdf
 │
 ├── include/
-│   ├── csr.h                               # CSR data structures (Edge, EdgeListGraph, CSRGraph) and function prototypes
-│   ├── bfs.h                               # BFS header
-│   └── sssp.h                              # SSSP header
+│   ├── bfs.h
+│   ├── csr.h
+│   ├── cuda_utils.h
+│   ├── sssp.h
+│   └── timer.h
 │
 ├── src/
-│   ├── csr.c                               # CSR implementation: read graph, build CSR, validate, dump
-│   ├── csr.o                               # Compiled object file for csr.c
-│   ├── bfs_cpu.c                           # CPU BFS implementation
-│   ├── bfs_gpu.cu                          # GPU BFS CUDA kernel
-│   ├── sssp_cpu.c                          # CPU SSSP implementation
-│   └── sssp_gpu.cu                         # GPU SSSP CUDA kernel
+│   ├── bfs/
+│   │   ├── bfs_cpu.cpp
+│   │   ├── bfs_gpu_t_p_v.cu
+│   │   └── bfs_gpu_w_p_v.cu
+│   ├── common_stuff/
+│   │   ├── csr.cpp
+│   │   ├── cuda_utils.cu
+│   │   └── timer.cpp
+│   └── sssp/
+│       ├── sssp_cpu.cpp
+│       ├── sssp_gpu_t_p_e.cu
+│       ├── sssp_gpu_t_p_v.cu
+│       └── sssp_gpu_w_p_v.cu
 │
 ├── test/
-│   ├── test_csr.c                          # Test harness for CSR conversion
-│   ├── test_csr.o                          # Compiled object file for test_csr.c
-│   └── csr_convert                         # Compiled test binary
+│   ├── test_bfs.cu
+│   ├── test_csr.cpp
+│   └── test_sssp.cu
 │
 └── graphs/
-    ├── sample_graph.txt                    # Small sample graph (5 vertices, 6 edges)
-    └── graph1.edgelist                     # Large graph (2701 vertices, 1,808,853 edges)
+    ├── sample_graph.txt
+    ├── graph1.edgelist
+    └── graph_gen.py
 ```
 
-## Graph Preprocessing and CSR Notation
+The `build/` directory contains generated executables and object files. It is
+not part of the source tree.
 
-Real-world graphs contain millions of vertices and edges, making dense adjacency matrices wasteful and raw edge lists slow for neighbour lookups. The Compressed Sparse Row (CSR) format solves both: it stores only existing edges contiguously in memory, giving fast, cache-friendly access — essential for coalesced memory access on the GPU.
+## Input graph format
 
-CSR represents the graph using three parallel arrays:
+Each input file is a weighted edge list with the following format:
 
-- **`row_offset`** (size V+1): For each vertex `i`, stores the starting index into the other two arrays. Neighbours of vertex `i` occupy `[row_offset[i], row_offset[i+1])`. The extra entry at index V acts as a sentinel so the formula works for the last vertex.
-- **`col_index`** (size E): A flat array holding the destination vertex of every edge, with each vertex's neighbours stored contiguously.
-- **`weights`** (size E): Parallel to `col_index`, storing the weight of the edge leading to each corresponding neighbour.
-
-
-
-### CSR Construction (`src/csr.c`)
-
-
-**1. `read_graph_from_file`**
-
-> **⚠️ Input file format:** Each graph is a plain-text edge list. The first line contains `<num_vertices> <num_edges>`, followed by `<num_edges>` lines of `<u> <v> <w>` (source, destination, weight).
-
-```c
-EdgeListGraph read_graph_from_file(const char *path) {
-    FILE *fp = fopen(path, "r");
-    if (!fp) {
-        fprintf(stderr, "Error: could not open input file '%s'\n", path);
-        exit(1);
-    }
-
-    EdgeListGraph g;
-    if (fscanf(fp, "%d %d", &g.V, &g.E) != 2) {
-        fprintf(stderr, "Error: failed to read header (<num_vertices> <num_edges>) "
-                        "from '%s'\n", path);
-        fclose(fp);
-        exit(1);
-    }
-
-    if (g.V < 0 || g.E < 0) {
-        fprintf(stderr, "Error: header has negative vertex/edge count: %d %d\n",
-                g.V, g.E);
-        fclose(fp);
-        exit(1);
-    }
-
-    g.edges = (Edge *)malloc(sizeof(Edge) * (size_t)g.E);
-    if (g.E > 0 && !g.edges) {
-        fprintf(stderr, "Error: out of memory allocating %d edges\n", g.E);
-        fclose(fp);
-        exit(1);
-    }
-
-    for (int i = 0; i < g.E; i++) {
-        int u, v;
-        float w;
-        if (fscanf(fp, "%d %d %f", &u, &v, &w) != 3) {
-            fprintf(stderr, "Error: expected %d edge lines but failed to read "
-                            "edge %d (only read %d successfully). Check the file "
-                            "has '<u> <v> <w>' per line and matches the header count.\n",
-                    g.E, i, i);
-            fclose(fp);
-            free(g.edges);
-            exit(1);
-        }
-        if (u < 0 || u >= g.V || v < 0 || v >= g.V) {
-            fprintf(stderr, "Error: edge %d has out-of-range endpoint(s): (%d, %d); "
-                            "expected both in [0, %d)\n", i, u, v, g.V);
-            fclose(fp);
-            free(g.edges);
-            exit(1);
-        }
-        g.edges[i].u = u;
-        g.edges[i].v = v;
-        g.edges[i].w = w;
-    }
-
-    fclose(fp);
-    return g;
-}
+```text
+<number_of_vertices> <number_of_edges>
+<source_vertex> <destination_vertex> <weight>
+<source_vertex> <destination_vertex> <weight>
+...
 ```
 
-Reads the plain-text edge list from disk into an `EdgeListGraph`. It first parses the header line `<num_vertices> <num_edges>` into `V` and `E`, allocates an array of `E` `Edge` structs, then reads exactly `E` lines of `<u> <v> <w>` into that array. Along the way it validates that the header values aren't negative, that every edge line actually contains three parseable values, and that every vertex index `u`/`v` falls within `[0, V)`. The output of this function is just a raw, unprocessed list of edges — no CSR structure exists yet.
+For example:
 
----
-
-**2. `build_csr`**
-
-```c
-CSRGraph build_csr(const EdgeListGraph *g, int directed) {
-    CSRGraph csr;
-    csr.V = g->V;
-    csr.E = directed ? g->E : g->E * 2;
-
-    csr.row_offset = (int *)calloc((size_t)csr.V + 1, sizeof(int));
-    csr.col_index  = (int *)malloc(sizeof(int) * (size_t)csr.E);
-    csr.weights    = (float *)malloc(sizeof(float) * (size_t)csr.E);
-    if (!csr.row_offset || (csr.E > 0 && (!csr.col_index || !csr.weights))) {
-        fprintf(stderr, "Error: out of memory building CSR for V=%d E=%d\n",
-                csr.V, csr.E);
-        exit(1);
-    }
-
-    // Pass 1: count out-degree of every vertex
-    for (int i = 0; i < g->E; i++) {
-        csr.row_offset[g->edges[i].u]++;
-        if (!directed) {
-            csr.row_offset[g->edges[i].v]++;
-        }
-    }
-
-    // Prefix sum to convert degrees into offsets
-    int running = 0;
-    for (int i = 0; i < csr.V; i++) {
-        int degree = csr.row_offset[i];
-        csr.row_offset[i] = running;
-        running += degree;
-    }
-    csr.row_offset[csr.V] = running;
-
-    int *cursor = (int *)malloc(sizeof(int) * (size_t)csr.V);
-    if (!cursor) {
-        fprintf(stderr, "Error: out of memory allocating cursor array\n");
-        exit(1);
-    }
-    memcpy(cursor, csr.row_offset, sizeof(int) * (size_t)csr.V);
-
-    // Pass 2: fill col_index and weights using cursor
-    for (int i = 0; i < g->E; i++) {
-        int u = g->edges[i].u, v = g->edges[i].v;
-        float w = g->edges[i].w;
-
-        int pos = cursor[u]++;
-        csr.col_index[pos] = v;
-        csr.weights[pos] = w;
-
-        if (!directed) {
-            int pos_rev = cursor[v]++;
-            csr.col_index[pos_rev] = u;
-            csr.weights[pos_rev] = w;
-        }
-    }
-
-    free(cursor);
-    return csr;
-}
+```text
+5 6
+0 1 1
+1 2 2
+0 3 4
+2 3 1
+3 4 3
+1 4 10
 ```
 
-Converts the raw edge list into the three CSR arrays (`row_offset`, `col_index`, `weights`). This is the core function and the one most worth understanding carefully:
+Vertex IDs must be in the range `[0, V)`. The graph loader validates the
+header, edge count, edge endpoints, and edge values while reading the file.
 
-- **Directed vs undirected, and why E can look "doubled":** if the graph is undirected, `csr.E` is set to `2 × g->E`, because each input edge `(u, v)` must be stored as two directed entries — `u → v` and `v → u` — so that both endpoints can traverse to each other. This is *not* a bug or duplication error; it's intentional, since the CSR format itself only knows about directed adjacency, and undirectedness is simulated by inserting the edge both ways.
+Input edges are directed by default. With the `--undirected` option, every
+input edge `(u, v, w)` is represented in CSR as both `(u, v, w)` and
+`(v, u, w)`.
 
-- **`row_offset` is reused for two different purposes across the function** — this is the main source of earlier confusion. In the first pass over the edges, `row_offset[i]` is temporarily used purely as a *degree counter*: it's incremented once for every edge where vertex `i` is an endpoint. Only after this counting pass finishes does `row_offset` get transformed, via a prefix sum, into actual *starting offsets* — each `row_offset[i]` is overwritten with the running total of all degrees before it. So the same array holds two conceptually different things at two different points in the function: first "how many edges does vertex i have," then "at what index does vertex i's block begin." `row_offset[V]` is explicitly set to the total edge count as a sentinel, which is what allows the degree of *any* vertex, including the last one, to always be computed safely as `row_offset[i+1] - row_offset[i]`.
+## CSR representation
 
-- **`cursor` is a write-position tracker, not a lookup array.** After the prefix sum, `row_offset` correctly stores where each vertex's block *starts*, but must be left untouched since callers rely on it. So `cursor` is created as a copy of `row_offset`. During the second pass, `cursor[u]` serves as "the next free slot for vertex u" — the edge is written to `col_index[cursor[u]]`, and only *after* writing does `cursor[u]` get incremented. It's a running pointer that advances by exactly one for every edge placed for vertex `u`, until all of that vertex's edges are placed contiguously.
+CSR stores the graph using three arrays:
 
----
+| Array | Size | Purpose |
+|---|---:|---|
+| `row_offset` | `V + 1` | Start and end offsets of each vertex's adjacency range |
+| `col_index` | `E` | Destination vertex for each stored edge |
+| `weights` | `E` | Weight corresponding to each entry in `col_index` |
 
-**3. `validate_csr`**
+The outgoing neighbors of vertex `u` are stored in:
 
-```c
-int validate_csr(const CSRGraph *g) {
-    if (g->row_offset[0] != 0) {
-        fprintf(stderr, "Validation error: row_offset[0] must be 0, got %d\n",
-                g->row_offset[0]);
-        return 0;
-    }
-    if (g->row_offset[g->V] != g->E) {
-        fprintf(stderr, "Validation error: row_offset[V] must equal E (%d), got %d\n",
-                g->E, g->row_offset[g->V]);
-        return 0;
-    }
-    for (int i = 0; i < g->V; i++) {
-        if (g->row_offset[i] > g->row_offset[i + 1]) {
-            fprintf(stderr, "Validation error: row_offset not monotonic at index %d\n", i);
-            return 0;
-        }
-    }
-    for (int i = 0; i < g->E; i++) {
-        if (g->col_index[i] < 0 || g->col_index[i] >= g->V) {
-            fprintf(stderr, "Validation error: col_index[%d] = %d out of range [0, %d)\n",
-                    i, g->col_index[i], g->V);
-            return 0;
-        }
-    }
-    return 1;
-}
+```text
+row_offset[u] ... row_offset[u + 1] - 1
 ```
 
-Performs four sanity checks on a fully built CSR graph to catch construction bugs before BFS/SSSP: `row_offset[0] == 0` (first vertex starts at index 0), `row_offset[V] == E` (sentinel equals total edge count), `row_offset` is non-decreasing (no negative-size blocks), and every `col_index` entry is in `[0, V)`. Does not check for duplicates or self-loops — only confirms internal well-formedness.
+CSR construction is centralized in
+[`src/common_stuff/csr.cpp`](src/common_stuff/csr.cpp), and its public
+declarations are in [`include/csr.h`](include/csr.h). CPU and GPU algorithms
+all use this shared implementation.
 
----
+CUDA device allocation and host-to-device CSR copies are handled separately by
+[`src/common_stuff/cuda_utils.cu`](src/common_stuff/cuda_utils.cu).
 
-**4. `dump_csr`**
+## Algorithms
 
-```c
-void dump_csr(const CSRGraph *g) {
-    printf("\nrow_offset (%d): ", g->V + 1);
-    for (int i = 0; i <= g->V; i++) printf("%d ", g->row_offset[i]);
-    printf("\ncol_index  (%d): ", g->E);
-    for (int i = 0; i < g->E; i++) printf("%d ", g->col_index[i]);
-    printf("\nweights    (%d): ", g->E);
-    for (int i = 0; i < g->E; i++) printf("%.3f ", g->weights[i]);
-    printf("\n");
-}
-```
+### BFS
 
-Debug utility that prints all three CSR arrays to `stdout` — `row_offset` (V+1 entries), `col_index` (E entries), and `weights` (E entries, 3 decimal places). Useful for manually verifying correctness on small graphs like `sample_graph.txt` by tracing through the arrays by hand.
+BFS starts from a source vertex and explores the graph level by level until the
+target is found or all reachable vertices have been visited.
 
-## Build and Run
+The GPU implementations use a frontier-based traversal:
 
-There is no Makefile (yet to be implemented) — compile manually from the project root using `gcc` (or `nvcc` for `.cu` files once GPU kernels are implemented).
+- **TPV:** one CUDA thread processes one frontier vertex.
+- **WPV:** one CUDA warp processes one frontier vertex, with lanes cooperating
+  over that vertex's outgoing edges.
 
-### Compile the CSR test binary
+GPU traversal order may differ between runs because frontier insertion uses
+atomic operations. Correctness should therefore be evaluated using reachability
+and the visited set rather than requiring an identical traversal order.
+
+### SSSP
+
+The SSSP implementations use the Bellman-Ford relaxation algorithm to compute
+distances from one source vertex:
+
+- **CPU:** sequential edge relaxation
+- **GPU TPV:** work mapped to vertices
+- **GPU TPE:** work mapped to edges
+- **GPU WPV:** work mapped to warps and vertices
+
+The SSSP input is weighted. The source vertex defaults to `0` for the
+standalone implementations. The unified benchmark accepts a source through
+`--src`.
+
+## Requirements
+
+- Linux or another Unix-like environment
+- A C++11-compatible compiler such as `g++`
+- NVIDIA CUDA Toolkit with `nvcc`
+- A CUDA-capable NVIDIA GPU for GPU programs
+
+The CPU programs and CSR test can run without a CUDA-capable GPU. GPU programs
+require a working CUDA driver and compatible device.
+
+## Build and run
+
+The complete build and execution commands are maintained in
+[`commands.txt`](commands.txt). Run commands from the repository root:
 
 ```bash
-gcc -Wall -g -Iinclude -o test/csr_convert src/csr.c test/test_csr.c
+cd /path/to/PCAP_implementation
+mkdir -p build
 ```
 
-- `-Wall` enables all compiler warnings
-- `-g` adds debug symbols for `gdb` / `valgrind`
-- `-Iinclude` tells the compiler to find `csr.h` in the `include/` directory
-
-### Run with default options (directed graph)
+### CSR test
 
 ```bash
-./test/csr_convert graphs/sample_graph.txt
+g++ -std=c++11 -Wall -Wextra -Iinclude \
+  test/test_csr.cpp \
+  src/common_stuff/csr.cpp \
+  -o build/test_csr
+
+./build/test_csr graphs/sample_graph.txt
 ```
 
-### Run with `--undirected` flag
-
-Treats the graph as undirected — each edge `(u, v)` is stored as both `u → v` and `v → u`, so the CSR edge count doubles.
+### CPU BFS
 
 ```bash
-./test/csr_convert graphs/sample_graph.txt --undirected
+g++ -std=c++11 -Wall -Wextra -Iinclude \
+  src/bfs/bfs_cpu.cpp \
+  src/common_stuff/csr.cpp \
+  src/common_stuff/timer.cpp \
+  -o build/bfs_cpu
+
+./build/bfs_cpu graphs/sample_graph.txt
 ```
 
-### Run with `--dump` flag
+### GPU BFS
 
-Prints the full `row_offset`, `col_index`, and `weights` arrays to stdout for manual inspection. Best used with small graphs like `sample_graph.txt`.
+Thread-per-frontier-vertex:
 
 ```bash
-./test/csr_convert graphs/sample_graph.txt --dump
+nvcc -std=c++11 -Iinclude \
+  src/bfs/bfs_gpu_t_p_v.cu \
+  src/common_stuff/csr.cpp \
+  src/common_stuff/cuda_utils.cu \
+  src/common_stuff/timer.cpp \
+  -o build/bfs_gpu_tpv
+
+./build/bfs_gpu_tpv graphs/sample_graph.txt
 ```
 
-### Combine both flags
+Warp-per-frontier-vertex:
 
 ```bash
-./test/csr_convert graphs/sample_graph.txt --undirected --dump
+nvcc -std=c++11 -Iinclude \
+  src/bfs/bfs_gpu_w_p_v.cu \
+  src/common_stuff/csr.cpp \
+  src/common_stuff/cuda_utils.cu \
+  src/common_stuff/timer.cpp \
+  -o build/bfs_gpu_wpv
+
+./build/bfs_gpu_wpv graphs/sample_graph.txt
 ```
-# CUDA_graph_traversal
 
+### CPU SSSP
 
-## commands to execute and run files : 
-#### sssp_cpu : 
 ```bash
-g++ -I../include sssp_cpu.cpp csr.cpp -o sssp_cpu.o
+g++ -std=c++11 -Wall -Wextra -Iinclude \
+  src/sssp/sssp_cpu.cpp \
+  src/common_stuff/csr.cpp \
+  src/common_stuff/timer.cpp \
+  -o build/sssp_cpu
 
- ./sssp_cpu.o ../graphs/graph1.edgelist 
-
+./build/sssp_cpu graphs/sample_graph.txt
 ```
+
+### GPU SSSP
+
+Thread-per-vertex:
+
+```bash
+nvcc -std=c++11 -Iinclude \
+  src/sssp/sssp_gpu_t_p_v.cu \
+  src/common_stuff/csr.cpp \
+  src/common_stuff/cuda_utils.cu \
+  src/common_stuff/timer.cpp \
+  -o build/sssp_gpu_tpv
+
+./build/sssp_gpu_tpv graphs/sample_graph.txt
+```
+
+Thread-per-edge:
+
+```bash
+nvcc -std=c++11 -Iinclude \
+  src/sssp/sssp_gpu_t_p_e.cu \
+  src/common_stuff/csr.cpp \
+  src/common_stuff/cuda_utils.cu \
+  src/common_stuff/timer.cpp \
+  -o build/sssp_gpu_tpe
+
+./build/sssp_gpu_tpe graphs/sample_graph.txt
+```
+
+Warp-per-vertex:
+
+```bash
+nvcc -std=c++11 -Iinclude \
+  src/sssp/sssp_gpu_w_p_v.cu \
+  src/common_stuff/csr.cpp \
+  src/common_stuff/cuda_utils.cu \
+  src/common_stuff/timer.cpp \
+  -o build/sssp_gpu_wpv
+
+./build/sssp_gpu_wpv graphs/sample_graph.txt
+```
+
+## Unified benchmarks
+
+### BFS benchmark
+
+The unified BFS benchmark runs CPU BFS, GPU TPV BFS, and GPU WPV BFS for one
+graph, source, and target:
+
+```bash
+nvcc -std=c++11 -Xcompiler=-Wall,-Wextra -Iinclude \
+  test/test_bfs.cu \
+  src/common_stuff/csr.cpp \
+  src/common_stuff/cuda_utils.cu \
+  src/common_stuff/timer.cpp \
+  -o build/test_bfs
+
+./build/test_bfs graphs/sample_graph.txt 0 4
+./build/test_bfs graphs/sample_graph.txt 0 4 --undirected --dump
+```
+
+Usage:
+
+```text
+./build/test_bfs <input_file> <source> <target> [--undirected] [--dump]
+```
+
+The benchmark reports execution times and checks that the CPU and GPU results
+agree on whether the target is reachable and on the visited vertices.
+
+### SSSP benchmark
+
+The unified SSSP benchmark runs the CPU implementation and all three GPU
+implementations:
+
+```bash
+nvcc -std=c++11 -Iinclude \
+  test/test_sssp.cu \
+  src/common_stuff/csr.cpp \
+  src/common_stuff/cuda_utils.cu \
+  src/common_stuff/timer.cpp \
+  -o build/benchmark_sssp
+
+./build/benchmark_sssp graphs/graph1.edgelist
+./build/benchmark_sssp graphs/graph1.edgelist --undirected --dump --src 0
+```
+
+Usage:
+
+```text
+./build/benchmark_sssp <input_file>
+    [--undirected] [--dump] [--src <vertex>]
+```
+
+The benchmark prints timing information and the computed distances. Use
+`--dump` when comparing individual vertex distances on a small graph.
+
+## Available graph files
+
+The repository includes small and larger graph inputs under `graphs/`.
+
+| File | Purpose |
+|---|---|
+| `sample_graph.txt` | Small graph for quick correctness checks |
+| `graph1.edgelist` | Larger graph for benchmark runs |
+| `graph_gen.py` | Utility for generating graph files |
+| `graph_large_sparse.edgelist` | Large sparse validation graph |
+| `graph_largest_sparse.edgelist` | Very large sparse validation graph |
+| `gplus_combined.edgelist` | Real-world graph input |
+| `roadNet-CA.edgelist` | Real-world road-network graph input |
+
+Large graph runs require substantially more host memory and GPU memory than the
+sample graph. Begin with the sample graph, then move to larger inputs after
+the correctness checks pass.
+
+## Troubleshooting
+
+### `nvcc: command not found`
+
+Install the CUDA Toolkit or add the CUDA `bin` directory to `PATH`. Verify the
+installation with:
+
+```bash
+nvcc --version
+```
+
+### CUDA runtime or device errors
+
+Check that an NVIDIA driver is installed and that the GPU is visible:
+
+```bash
+nvidia-smi
+```
+
+### Invalid source or target
+
+Source and target IDs must be in the range `[0, V)`, where `V` is the vertex
+count in the graph header. For the unified BFS benchmark, pass the source and
+target explicitly:
+
+```bash
+./build/test_bfs graphs/sample_graph.txt 0 4
+```
+
+### Comparing GPU BFS output
+
+The order in which vertices appear in a GPU BFS traversal can differ from the
+CPU order. Compare reachability and visited vertices rather than requiring the
+same order.
+
+## Development notes
+
+- Keep graph loading and CSR construction in `src/common_stuff/csr.cpp`.
+- Use `src/common_stuff/cuda_utils.cu` for device-side CSR allocation and
+  transfers.
+- Add new algorithm implementations under `src/bfs/` or `src/sssp/`.
+- Keep generated binaries and object files in `build/`.
+- Run `git diff --check` before committing changes.
