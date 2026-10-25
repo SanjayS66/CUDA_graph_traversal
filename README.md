@@ -354,40 +354,104 @@ Large graph runs require substantially more host memory and GPU memory than the
 sample graph. Begin with the sample graph, then move to larger inputs after
 the correctness checks pass.
 
-## Troubleshooting
-
-### `nvcc: command not found`
-
-Install the CUDA Toolkit or add the CUDA `bin` directory to `PATH`. Verify the
-installation with:
-
-```bash
-nvcc --version
-```
-
-### CUDA runtime or device errors
-
-Check that an NVIDIA driver is installed and that the GPU is visible:
-
-```bash
-nvidia-smi
-```
-
-### Invalid source or target
-
-Source and target IDs must be in the range `[0, V)`, where `V` is the vertex
-count in the graph header. For the unified BFS benchmark, pass the source and
-target explicitly:
-
-```bash
-./build/test_bfs graphs/sample_graph.txt 0 4
-```
 
 ### Comparing GPU BFS output
 
 The order in which vertices appear in a GPU BFS traversal can differ from the
 CPU order. Compare reachability and visited vertices rather than requiring the
 same order.
+
+## Validation results
+
+The following results were obtained using the unified BFS and SSSP benchmarks
+on the available NVIDIA GPU. Timings are included as reference measurements;
+they can vary with GPU load, driver version, compiler version, and system
+configuration.
+
+### BFS on real-world graphs
+
+Both GPU implementations matched the CPU correctness checks and found the
+requested target.
+
+#### `gplus_combined.edgelist`
+
+Command:
+
+```bash
+./build/test_bfs graphs/gplus_combined.edgelist 0 102099
+```
+
+Graph: `V = 102100`, `E = 12113501`, directed.
+
+| Implementation | Time |
+|---|---:|
+| CPU BFS | 19.5651 ms |
+| GPU TPV BFS | 204.2895 ms |
+| GPU WPV BFS | 22.5946 ms |
+
+Result: target found, TPV correct, and WPV correct.
+
+#### `roadNet-CA.edgelist`
+
+Command:
+
+```bash
+./build/test_bfs graphs/roadNet-CA.edgelist 0 1971280
+```
+
+Graph: `V = 1971281`, `E = 5533214`, directed.
+
+| Implementation | Time |
+|---|---:|
+| CPU BFS | 14.6368 ms |
+| GPU TPV BFS | 188.3604 ms |
+| GPU WPV BFS | 17.2368 ms |
+
+Result: target found, TPV correct, and WPV correct.
+
+### SSSP on real-world graphs
+
+The unified SSSP benchmark verified all GPU implementations against the CPU
+Bellman-Ford baseline. Verification passed for 100% of the compared
+distances in both runs.
+
+#### `roadNet-CA.edgelist`
+
+Command:
+
+```bash
+./build/test_sssp graphs/roadNet-CA.edgelist
+```
+
+Graph: `V = 1971281`, `E = 5533214`, directed. Source vertex: `0`.
+
+| Strategy | Rounds | Time | Speedup versus CPU |
+|---|---:|---:|---:|
+| CPU Bellman-Ford | 264 | 4945.2346 ms | 1.00x |
+| GPU TPV | 394 | 258.9295 ms | 19.10x |
+| GPU TPE | 527 | 435.6605 ms | 11.35x |
+| GPU WPV | 485 | 1305.4254 ms | 3.79x |
+
+Verification: all GPU implementations passed.
+
+#### `gplus_combined.edgelist`
+
+Command:
+
+```bash
+./build/test_sssp graphs/gplus_combined.edgelist
+```
+
+Graph: `V = 102100`, `E = 12113501`, directed. Source vertex: `0`.
+
+| Strategy | Rounds | Time | Speedup versus CPU |
+|---|---:|---:|---:|
+| CPU Bellman-Ford | 2 | 45.1010 ms | 1.00x |
+| GPU TPV | 5 | 92.2413 ms | 0.49x |
+| GPU TPE | 7 | 66.9571 ms | 0.67x |
+| GPU WPV | 6 | 27.3488 ms | 1.65x |
+
+Verification: all GPU implementations passed.
 
 ## Development notes
 
